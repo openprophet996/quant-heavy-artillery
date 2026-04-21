@@ -1,85 +1,82 @@
 import streamlit as st
 import numpy as np
-import pandas as pd
 
-# --- 页面 UI 增强 ---
-st.set_page_config(page_title="量化重炮终端 V8.0", layout="wide")
-st.title("🛡️ 量化重炮 - 小玩家博弈武器")
-st.subheader("集成：球员情报修正 + 3万次模拟 + 凯利风控")
+# --- 页面配置 ---
+st.set_page_config(page_title="量化重炮 V11.0", layout="wide")
 
-# --- 模块 1：数据采集 (Manual Bridge) ---
-with st.expander("📡 第一步：录入 Polymarket 实时水位", expanded=True):
-    col_a, col_b = st.columns(2)
-    with col_a:
-        match_name = st.text_input("赛事名称", "NBA: 湖人 vs 掘金")
-        market_price = st.number_input("Polymarket 当前买入价格 (0.01 - 0.99)", value=0.48, step=0.01)
-    with col_b:
-        # 自动换算成赔率
-        odds = round(1 / market_price, 2) if market_price > 0 else 2.0
-        st.metric("实时换算赔率", f"{odds}")
-        bankroll = st.number_input("你的当前本金 ($)", value=1000)
+st.title("🛡️ 量化重炮 V11.0 - 实时情报对冲终端")
+st.caption("不再使用预设名单，完全基于你掌握的最新交易与伤病数据进行即时建模。")
 
-# --- 模块 2：情报引擎 (Intelligence Core) ---
+# --- 第一部分：赛事与赔率 (Polymarket 同步) ---
+with st.container(border=True):
+    col1, col2, col3 = st.columns(3)
+    with col1:
+        team_target = st.text_input("🎯 目标球队 (你准备下注的一方)", "例如：太阳")
+    with col2:
+        market_odds = st.number_input("💰 实时赔率 (Polymarket)", value=1.95, step=0.01)
+    with col3:
+        bankroll = st.number_input("💵 你的总本金 ($)", value=2000)
+
+st.markdown("---")
+
+# --- 第二部分：自定义球员影响 (这里解决交易与伤病的新数据问题) ---
+st.subheader("🧬 实时情报修正 (基于最新新闻)")
+st.write("根据你看到的最新球员变动（如 Trae Young 交易、AD 伤停等），手动调整影响权重：")
+
+col_info1, col_info2 = st.columns(2)
+
+with col_info1:
+    st.markdown("#### 🔴 负面冲击 (针对目标球队)")
+    # 这里让你根据最新数据自己勾选，不设死名字
+    neg_1 = st.checkbox("核心球星确阵/刚被交易走 (S级战力流失) -15%")
+    neg_2 = st.checkbox("主要轮换受伤/防守体系崩塌 -7%")
+    neg_custom = st.slider("自定义额外负面影响 (%)", 0, 30, 0)
+
+with col_info2:
+    st.markdown("#### 🟢 正面补偿 (针对目标球队)")
+    pos_1 = st.checkbox("对手核心确认缺阵 (对方战力真空) +12%")
+    pos_2 = st.checkbox("新援首秀/主力伤愈复出 (如新交易球员上场) +6%")
+    pos_custom = st.slider("自定义额外正面补偿 (%)", 0, 30, 0)
+
+# --- 第三部分：深度运算与博弈决策 ---
 st.divider()
-st.subheader("🧬 第二步：球员情报与贝叶斯修正")
-col1, col2 = st.columns(2)
+st.subheader("🔥 30,000 次蒙特卡洛深度模拟")
 
-with col1:
-    st.write("🔴 **利空情报 (降低胜率)**")
-    inj_star = st.checkbox("核心超级球星缺阵 (如 AD / Trae Young) -15%")
-    inj_role = st.checkbox("重要主力/防守闸门缺阵 -7%")
-    schedule_hit = st.checkbox("赛程劣势 (背靠背 / 高原客场) -4%")
+# 你的初始直觉/模型基础
+base_p = st.slider("基础信心胜率 (基于历史战绩判断 %)", 10, 90, 50)
 
-with col2:
-    st.write("🟢 **利好情报 (提升胜率)**")
-    opp_star_out = st.checkbox("对手核心球星缺阵 +12%")
-    new_signing = st.checkbox("交易补强新援首秀 / 主力复出 +5%")
-    home_boost = st.checkbox("主场哨利好 / 关键对位优势 +3%")
-
-# --- 模块 3：混合模拟引擎 ---
-st.divider()
-if st.button("🚀 执行 30,000 次蒙特卡洛深度推演", use_container_width=True):
-    # 基础概率推算 (此处可接入更复杂的历史数据)
-    base_p = 0.50 # 默认 50/50 均衡开局
+if st.button(f"🚀 开始对 【{team_target}】 进行量化推演", use_container_width=True):
+    # 动态概率计算逻辑
+    penalty = (15 if neg_1 else 0) + (7 if neg_2 else 0) + neg_custom
+    bonus = (12 if pos_1 else 0) + (6 if pos_2 else 0) + pos_custom
     
-    # 贝叶斯变量叠加
-    adjustment = (12 if opp_star_out else 0) + (5 if new_signing else 0) + (3 if home_boost else 0) \
-                 - (15 if inj_star else 0) - (7 if inj_role else 0) - (4 if schedule_hit else 0)
-    
-    final_p = (base_p * 100 + adjustment) / 100
+    # 贝叶斯修正：最终概率
+    final_p = (base_p - penalty + bonus) / 100
     final_p = max(0.01, min(0.99, final_p))
     
-    # 运行 30,000 次模拟
+    # 30,000 次模拟
     sims = np.random.choice([1, 0], size=30000, p=[final_p, 1-final_p])
-    calc_wr = np.mean(sims)
+    win_rate = np.mean(sims)
     
-    # --- 模块 4：价值挖掘与下注建议 ---
-    st.subheader("🎯 模拟结果与策略输出")
-    res_col1, res_col2, res_col3 = st.columns(3)
-    
-    # 计算 EV
-    ev = (calc_wr * odds) - 1
-    
-    # 计算凯利公式 (b*p-q)/b
-    b = odds - 1
-    p = calc_wr
-    q = 1 - p
-    kelly_f = (b * p - q) / b if b > 0 else 0
-    
-    # 安全阀门：最高只允许投入 10%
-    safe_kelly = min(kelly_f * 0.5, 0.10) if kelly_f > 0 else 0
+    # 期望值与凯利公式
+    ev = (win_rate * market_odds) - 1
+    b = market_odds - 1
+    kelly_f = (b * win_rate - (1 - win_rate)) / b if b > 0 else 0
+    # 稳健策略：半凯利且不超 10% 仓位
+    safe_bet = min(max(0, kelly_f * 0.5), 0.10)
 
-    with res_col1:
-        st.metric("模型预测真实胜率", f"{calc_wr:.2%}", delta=f"{adjustment}%")
-    with res_col2:
-        st.metric("期望值 (EV)", f"{ev:.2%}", delta="洼地" if ev > 0.05 else "无利")
-    with res_col3:
-        st.metric("建议下注额", f"${bankroll * safe_kelly:.2f}")
+    # 结果看板
+    res1, res2, res3 = st.columns(3)
+    with res1:
+        st.metric("修正后真实胜率", f"{win_rate:.2%}", delta=f"{bonus-penalty}%")
+    with res2:
+        st.metric("期望值 (EV)", f"{ev:.2%}", delta="洼地机会" if ev > 0.05 else "风险偏高")
+    with res3:
+        st.metric("建议下单金额", f"${bankroll * safe_bet:.2f}")
 
-    st.divider()
     if ev > 0.05:
-        st.success(f"⚖️ **量化结论**：发现显著价值。建议以本金的 {safe_kelly:.1%} (${bankroll * safe_kelly:.2f}) 介入。")
+        st.success(f"⚖️ 结论：检测到信息差。建议在 Polymarket 以 {market_odds} 赔率买入 ${bankroll * safe_bet:.2f}")
     else:
-        st.warning("⚠️ **量化结论**：当前赔率已被吃满，或利空太重，不具备博弈价值，建议观望。")
+        st.error("❌ 结论：利空过载或赔率太低，无博弈价值。")
 
-st.caption("提示：此工具旨在消除信息差，请严格遵守凯利仓位，切勿梭哈。")
+st.info("💡 实战技巧：当你看到 Twitter 突发球员交易时，立即在左侧输入球队名，勾选'核心缺阵'并运行模拟，抢在 Polymarket 赔率变动前下单。")
